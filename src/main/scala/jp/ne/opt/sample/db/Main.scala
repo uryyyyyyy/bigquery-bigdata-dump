@@ -15,14 +15,17 @@ import scala.concurrent.duration._
 
 object Main {
   def main(args: Array[String]): Unit = {
-    val bigquery = BigQueryOptions.newBuilder().setProjectId("teak-trainer-806").build().getService
+    val projectId = "teak-trainer-806"
+    val bucketName = "teak-trainer-806-ml"
+    val bigquery = BigQueryOptions.newBuilder().setProjectId(projectId).build().getService
     val destination = TableId.of("aaa", "bbb")
     queryToTable(bigquery, destination)
     println("queryToTable fin")
-    dumpFromBq(bigquery, destination)
+    dumpFromBq(bigquery, destination, bucketName)
     println("dumpFromBq fin")
-    readFromGCSStreaming("teak-trainer-806-ml", "bq-dump")
-    //    readFromGCS("teak-trainer-806-ml", "bq-dump")
+    readFromGCSStreaming(bucketName, "bq-dump")
+    //    OoMになるかもの例
+    //    readFromGCS(bucketName, "bq-dump")
   }
 
   def queryToTable(bigquery: BigQuery, destination: TableId): Unit = {
@@ -38,8 +41,8 @@ object Main {
     queryJob = queryJob.waitFor()
   }
 
-  def dumpFromBq(bigquery: BigQuery, destination: TableId): Unit = {
-    val tempFileURL = "gs://teak-trainer-806-ml/bq-dump"
+  def dumpFromBq(bigquery: BigQuery, destination: TableId, bucket: String): Unit = {
+    val tempFileURL = s"gs://${bucket}/bq-dump"
     val queryConfig2 = ExtractJobConfiguration
       .newBuilder(destination, tempFileURL)
       .setFormat("CSV")
@@ -49,15 +52,15 @@ object Main {
     queryJob2 = queryJob2.waitFor()
   }
 
-  def readFromGCS(project: String, filePath: String): Unit = {
+  def readFromGCS(bucket: String, filePath: String): Unit = {
     val storage = StorageOptions.newBuilder().setProjectId("teak-trainer-806").build().getService
-    val aa = storage.readAllBytes(project, filePath)
+    val aa = storage.readAllBytes(bucket, filePath)
     println(aa.size)
   }
 
-  def readFromGCSStreaming(project: String, filePath: String): Unit = {
+  def readFromGCSStreaming(bucket: String, filePath: String): Unit = {
     val storage = StorageOptions.newBuilder().setProjectId("teak-trainer-806").build().getService
-    val reader = storage.reader(project, filePath)
+    val reader = storage.reader(bucket, filePath)
 
     implicit val system = ActorSystem("gc-example")
     implicit val materializer = ActorMaterializer()
