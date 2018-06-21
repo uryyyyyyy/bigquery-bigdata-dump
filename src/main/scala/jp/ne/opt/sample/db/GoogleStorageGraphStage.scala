@@ -1,0 +1,42 @@
+package jp.ne.opt.sample.db
+
+import java.nio.ByteBuffer
+
+import akka.stream.{Attributes, Outlet, SourceShape}
+import akka.stream.stage.{GraphStage, GraphStageLogic, OutHandler}
+import akka.util.ByteString
+import com.google.cloud.ReadChannel
+
+class GoogleStorageGraphStage(storageChannel: ReadChannel, chunkKByteSize : Int = 64) extends GraphStage[SourceShape[ByteString]] {
+
+  val out: Outlet[ByteString] = Outlet("GoogleStorageSource")
+
+  override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
+
+    private def getValidChunkSize(chunkKByteSize: Int) = {
+      if (chunkKByteSize < 1) {
+        64
+      }else{
+        chunkKByteSize
+      }
+    }
+
+    val bytes = ByteBuffer.allocate(getValidChunkSize(chunkKByteSize) * 1024);
+
+    setHandler(out, new OutHandler {
+
+      override def onPull(): Unit = {
+        if (storageChannel.read(bytes) > 0) {
+          bytes.flip()
+          push(out, ByteString(bytes))
+        } else {
+          completeStage()
+          storageChannel.close()
+        }
+        bytes.clear()
+      }
+    })
+  }
+
+  override def shape: SourceShape[ByteString] = SourceShape(out)
+}
